@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام الإحالات</title>
+<style>
+body { font-family: Arial, sans-serif; text-align: center; padding: 20px; background: #f5f5f5; }
+input { width: 80%; padding: 10px; font-size: 16px; margin-top: 10px; }
+button { padding: 10px 20px; font-size: 16px; margin-top: 10px; cursor: pointer; }
+.stats { margin-top: 20px; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<h2>نظام الإحالات</h2>
+
+<div>
+    <h3>رابط الإحالة الخاص بك:</h3>
+    <input type="text" id="myReferral" readonly>
+    <br>
+    <button onclick="copyReferral()">نسخ الرابط</button>
+</div>
+
+<div class="stats">
+    <p>عدد إحالاتك: <span id="refCount">0</span></p>
+    <p>نقاطك: <span id="points">0</span></p>
+</div>
+
+<script>
+// ===== 1️⃣ جلب معرف المستخدم من Telegram WebApp =====
+const tgData = window.Telegram?.WebApp?.initDataUnsafe || {};
+const userId = tgData.user?.id || 'guest_' + Math.floor(Math.random()*1000000);
+
+// ===== 2️⃣ تخزين بيانات المستخدم في LocalStorage =====
+let users = JSON.parse(localStorage.getItem('users')) || {};
+
+if(!users[userId]){
+    users[userId] = {
+        points: 0,
+        referrals: 0
+    };
+    localStorage.setItem('users', JSON.stringify(users));
+}
+
+// ===== 3️⃣ إنشاء رابط الإحالة الديناميكي =====
+const myReferralLink = `https://t.me/SJsbsbshsshjssksBot/play?startapp=ref_${userId}`;
+document.getElementById("myReferral").value = myReferralLink;
+
+// ===== 4️⃣ نسخ الرابط =====
+function copyReferral(){
+    const copyText = document.getElementById("myReferral");
+    copyText.select();
+    copyText.setSelectionRange(0, 99999);
+    document.execCommand("copy");
+    alert("تم نسخ رابط الإحالة!");
+}
+
+// ===== 5️⃣ معالجة زيارة رابط إحالة =====
+function handleReferral() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref'); // الشكل المتوقع: ref_<USER_ID>
+
+    if(ref){
+        const refUserId = ref.replace('ref_', '');
+        if(refUserId !== String(userId)){ // لا تحسب إحالة لنفس المستخدم
+            if(users[refUserId]){
+                users[refUserId].points += 5000; // نقاط لكل إحالة
+                users[refUserId].referrals += 1;
+                localStorage.setItem('users', JSON.stringify(users));
+            } else {
+                // إنشاء حساب افتراضي للـrefUserId إذا لم يكن موجود
+                users[refUserId] = { points: 5000, referrals: 1 };
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+        }
+    }
+}
+
+handleReferral();
+
+// ===== 6️⃣ عرض عدد الإحالات والنقاط =====
+function updateStats(){
+    document.getElementById("refCount").innerText = users[userId].referrals;
+    document.getElementById("points").innerText = users[userId].points;
+}
+
+updateStats();
+</script>
+
+</body>
+</html>
