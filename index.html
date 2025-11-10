@@ -405,10 +405,113 @@
     <div class="modal" id="withdrawModal"><div class="modal-content"><span class="close-btn" id="closeWithdraw">&times;</span><div>Your Polygon USDT address</div><input type="text" id="withdrawAddress" placeholder="0x..."><div>Amount to withdraw (min 0.5 USDT)</div><input type="number" id="withdrawAmount" min="0.5" step="0.1" placeholder="0.5"><button id="confirmWithdraw">Withdraw Now</button></div></div>
 
     <!--========= SCRIPTS =========-->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://ad.gigapub.tech/script?id=3459"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        // Loading screen animation
+        // ===== 1) Supabase Client =====
+        const SUPABASE_URL = 'https://cgoypejhtytewcdjgiso.supabase.co';
+        const SUPABASE_ANON= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnb3lwZWpodHl0ZXdjZGpnaXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NzkyOTEsImV4cCI6MjA3ODM1NTI5MX0.mo4cdPIh5JLkD4xM_a-Z-CWYvOOrMhLi_ApLC7ClADs';
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+        // ===== 2) Telegram =====
+        const tg       = window.Telegram.WebApp;
+        const userID   = tg.initDataUnsafe?.user?.id   || 999999;
+        const userName = tg.initDataUnsafe?.user?.username || 'user_'+userID;
+
+        // ===== 3) Local Keys =====
+        const LS_PREFIX = `usr_${userID}_`;
+        const LS = {
+            clicks : LS_PREFIX + 'clicks',
+            usdt   : LS_PREFIX + 'usdt',
+            counter: LS_PREFIX + 'counter',
+            auto   : LS_PREFIX + 'auto',
+            countdown: LS_PREFIX + 'countdown',
+            joined : LS_PREFIX + 'joined',
+            mysteryLastClaim: LS_PREFIX + 'mysteryLastClaim',
+            quickLastClaim  : LS_PREFIX + 'quickLastClaim',
+            referredBy      : LS_PREFIX + 'referredBy',
+            claimedReferral : LS_PREFIX + 'claimedReferral'
+        };
+
+        // ===== 4) DOM Shortcuts =====
+        const pointsBalance  = document.getElementById('pointsBalance');
+        const usdtBalance    = document.getElementById('usdtBalance');
+        const countdownTimer = document.getElementById('countdownTimer');
+        const mainCircle     = document.getElementById('mainCircle');
+        const mysteryBoxBtn  = document.getElementById('mysteryBoxBtn');
+        const quickBonusBtn  = document.getElementById('quickBonusBtn');
+        const taskNav        = document.getElementById('taskNav');
+        const swapNav        = document.getElementById('swapNav');
+        const watchNav       = document.getElementById('watchNav');
+        const withdrawNav    = document.getElementById('withdrawNav');
+        const adBadge        = document.getElementById('adBadge');
+        const referralCountEl= document.getElementById('referralCount');
+
+        // ===== 5) State =====
+        let clicks   = parseInt(localStorage.getItem(LS.clicks))   || 0;
+        let usdt     = parseFloat(localStorage.getItem(LS.usdt)) || 0;
+        let counter  = parseInt(localStorage.getItem(LS.counter)) || 30;
+        let autoClickEnabled = localStorage.getItem(LS.auto) === 'true';
+        let timeLeft = parseInt(localStorage.getItem(LS.countdown)) || (3 * 3600);
+
+        // ===== 6) UI Helpers =====
+        function saveAll() {
+            localStorage.setItem(LS.clicks, clicks);
+            localStorage.setItem(LS.usdt, usdt);
+            localStorage.setItem(LS.counter, counter);
+            localStorage.setItem(LS.auto, autoClickEnabled);
+            localStorage.setItem(LS.countdown, timeLeft);
+        }
+        function updateUI() {
+            pointsBalance.textContent = clicks;
+            usdtBalance.textContent   = usdt.toFixed(3);
+            adBadge.textContent       = counter;
+            adBadge.style.display     = counter > 0 ? 'flex' : 'none';
+            if (autoClickEnabled) mainCircle.classList.add('ripple');
+            else mainCircle.classList.remove('ripple');
+        }
+
+        // ===== 7) Supabase – Referral Count =====
+        async function fetchReferralCount() {
+            const { count, error } = await sb
+                .from('referrals')
+                .select('*', { count: 'exact', head: true })
+                .eq('referrer_id', userID);
+            if (!error) referralCountEl.textContent = count;
+        }
+        async function recordReferral(referrer) {
+            await sb.from('referrals').insert({ referrer_id: referrer, referred_id: userID });
+            fetchReferralCount();
+        }
+
+        // ===== 8) Referral Logic =====
+        function getReferrerFromURL() {
+            const p = new URLSearchParams(location.search);
+            const s = p.get('startapp');
+            return (s && s.startsWith('ref_')) ? parseInt(s.replace('ref_', '')) : null;
+        }
+        const referrerID = getReferrerFromURL();
+        const isNewUser  = !localStorage.getItem(LS.clicks);
+
+        if (referrerID && isNewUser && referrerID !== userID) {
+            const claimed = localStorage.getItem(LS.claimedReferral) === 'true';
+            if (!claimed) {
+                localStorage.setItem(LS.referredBy, referrerID);
+                localStorage.setItem(LS.claimedReferral, 'true');
+                clicks += 10000;
+                recordReferral(referrerID);
+                saveAll(); updateUI();
+            }
+        } else { fetchReferralCount(); }
+
+        // ===== 9) Copy Referral Link =====
+        document.getElementById('copyReferralLink').addEventListener('click', () => {
+            const link = `https://t.me/SJsbsbshsshjssksBot/play?startapp=ref_${userID}`;
+            navigator.clipboard.writeText(link).then(() => alert('Copied!'));
+        });
+
+        // ===== 10) Loading Screen =====
         let progress = 0;
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
@@ -431,145 +534,16 @@
                 }, 500);
             }
         }
-
-        // Start loading animation
         updateProgress();
 
-        /*========= استقبال بيانات المستخدم =========*/
-        const tg              = window.Telegram.WebApp;
-        const userID          = tg.initDataUnsafe?.user?.id || 999999;
-        const userName        = tg.initDataUnsafe?.user?.username || 'user_'+userID;
-        const LS_PREFIX       = `usr_${userID}_`;
-
-        const LS = {
-            clicks : LS_PREFIX + 'clicks',
-            usdt   : LS_PREFIX + 'usdt',
-            counter: LS_PREFIX + 'counter',
-            auto   : LS_PREFIX + 'auto',
-            countdown: LS_PREFIX + 'countdown',
-            joined : LS_PREFIX + 'joined',
-            mysteryLastClaim: LS_PREFIX + 'mysteryLastClaim',
-            quickLastClaim  : LS_PREFIX + 'quickLastClaim',
-            referredBy      : LS_PREFIX + 'referredBy',
-            referralCount   : LS_PREFIX + 'referralCount',
-            claimedReferral : LS_PREFIX + 'claimedReferral'
-        };
-
-        let clicks   = parseInt(localStorage.getItem(LS.clicks))   || 0;
-        let usdt     = parseFloat(localStorage.getItem(LS.usdt)) || 0;
-        let counter  = parseInt(localStorage.getItem(LS.counter)) || 30;
-        let autoClickEnabled = localStorage.getItem(LS.auto) === 'true';
-        let timeLeft = parseInt(localStorage.getItem(LS.countdown)) || (3 * 3600);
-
-        /*========= DOM SHORTCUTS =========*/
-        const pointsBalance = document.getElementById('pointsBalance');
-        const usdtBalance   = document.getElementById('usdtBalance');
-        const countdownTimer= document.getElementById('countdownTimer');
-        const mainCircle    = document.getElementById('mainCircle');
-        const mysteryBoxBtn = document.getElementById('mysteryBoxBtn');
-        const quickBonusBtn = document.getElementById('quickBonusBtn');
-        const taskNav       = document.getElementById('taskNav');
-        const swapNav       = document.getElementById('swapNav');
-        const watchNav      = document.getElementById('watchNav');
-        const withdrawNav   = document.getElementById('withdrawNav');
-        const adBadge       = document.getElementById('adBadge');
-        const referralCountEl = document.getElementById('referralCount');
-
-        /*========= عرض بيانات المستخدم =========*/
-        const userFooter    = document.getElementById('userFooter');
-        const userAvatar    = document.getElementById('userAvatar');
-        const userNameEl    = document.getElementById('userName');
-        const userUsernameEl= document.getElementById('userUsername');
-
-        function showUserData(){
-            const tgData = tg.initDataUnsafe?.user;
-            if(!tgData){ userFooter.style.display='none'; return; }
-
-            const fullName = [tgData.first_name, tgData.last_name].filter(Boolean).join(' ');
-            userNameEl.textContent = fullName || 'No Name';
-
-            const username = tgData.username ? '@'+tgData.username : 'غير متاح';
-            userUsernameEl.textContent = username;
-
-            if(tgData.photo_url){
-                userAvatar.style.backgroundImage = `url(${tgData.photo_url})`;
-            }else{
-                userAvatar.style.backgroundImage = 'none';
-            }
-
-            userFooter.style.display = 'flex';
-        }
-        showUserData();
-
-        /*========= UTILITIES =========*/
-        function saveAll() {
-            localStorage.setItem(LS.clicks, clicks);
-            localStorage.setItem(LS.usdt, usdt);
-            localStorage.setItem(LS.counter, counter);
-            localStorage.setItem(LS.auto, autoClickEnabled);
-            localStorage.setItem(LS.countdown, timeLeft);
-        }
-        function updateUI() {
-            pointsBalance.textContent = clicks;
-            usdtBalance.textContent   = usdt.toFixed(3);
-            adBadge.textContent       = counter;
-            adBadge.style.display     = counter > 0 ? 'flex' : 'none';
-            referralCountEl.textContent = localStorage.getItem(LS.referralCount) || 0;
-            if (autoClickEnabled) mainCircle.classList.add('ripple');
-            else mainCircle.classList.remove('ripple');
-        }
-        updateUI();
-
-        /*========= CENTER CIRCLE CLICK (manual) =========*/
+        // ===== 11) Center Circle Click =====
         mainCircle.addEventListener('click', () => {
             if (!autoClickEnabled) return;
             clicks++;
-            saveAll();
-            updateUI();
+            saveAll(); updateUI();
         });
 
-        /*========= REFERRAL LINK =========*/
-        function getReferrerFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            const startapp = params.get('startapp');
-            if (startapp && startapp.startsWith('ref_')) {
-                return parseInt(startapp.replace('ref_', ''));
-            }
-            return null;
-        }
-        const referrerID = getReferrerFromURL();
-        const isNewUser = !localStorage.getItem(LS.clicks);
-
-        if (referrerID && isNewUser && referrerID !== userID) {
-            const referrerPrefix = `usr_${referrerID}_`;
-            const referrerClicksKey = referrerPrefix + 'clicks';
-            const referrerClaimedKey = referrerPrefix + 'claimedReferral';
-
-            const referrerClicks = parseInt(localStorage.getItem(referrerClicksKey)) || 0;
-            const referrerClaimed = localStorage.getItem(referrerClaimedKey) === 'true';
-
-            if (!referrerClaimed) {
-                localStorage.setItem(referrerClicksKey, referrerClicks + 10000);
-                localStorage.setItem(referrerClaimedKey, 'true');
-                localStorage.setItem(LS.referredBy, referrerID);
-                // زيادة عدد الإحالات لصاحب الرابط
-                const referrerRefCountKey = referrerPrefix + 'referralCount';
-                const referrerRefCount = parseInt(localStorage.getItem(referrerRefCountKey)) || 0;
-                localStorage.setItem(referrerRefCountKey, referrerRefCount + 1);
-            }
-        }
-
-        /*========= COPY REFERRAL LINK =========*/
-        document.getElementById('copyReferralLink').addEventListener('click', () => {
-            const referralLink = `https://t.me/SJsbsbshsshjssksBot/play?startapp=ref_${userID}`;
-            navigator.clipboard.writeText(referralLink).then(() => {
-                alert('Referral link copied to clipboard!');
-            }).catch(() => {
-                alert('Failed to copy link. Please copy manually: ' + referralLink);
-            });
-        });
-
-        /*========= MYSTERY BOX (5 min) =========*/
+        // ===== 12) Mystery Box =====
         function canClaimMystery() {
             const last = parseInt(localStorage.getItem(LS.mysteryLastClaim)) || 0;
             return (Date.now() - last) >= 5 * 60 * 1000;
@@ -593,7 +567,7 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        /*========= QUICK BONUS (24 h) =========*/
+        // ===== 13) Quick Bonus =====
         function canClaimQuick() {
             const last = parseInt(localStorage.getItem(LS.quickLastClaim)) || 0;
             return (Date.now() - last) >= 24 * 60 * 60 * 1000;
@@ -617,14 +591,13 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        /*========= WATCH ADS (30x) =========*/
+        // ===== 14) Watch Ads =====
         watchNav.addEventListener('click', () => {
             if (counter <= 0) return alert("All ads watched! Auto-Click is ON.");
             window.showGiga()
                 .then(() => {
                     counter--;
-                    saveAll();
-                    updateUI();
+                    saveAll(); updateUI();
                     if (counter === 0 && !autoClickEnabled) {
                         autoClickEnabled = true;
                         saveAll(); updateUI();
@@ -636,7 +609,7 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        /*========= TASKS MODAL =========*/
+        // ===== 15) Tasks Modal =====
         taskNav.addEventListener('click', () => document.getElementById('taskModal').style.display = 'flex');
         document.getElementById('closeTask').onclick = () => document.getElementById('taskModal').style.display = 'none';
         document.getElementById('joinChannelCheck').onchange = e => { if (e.target.checked) window.open('https://t.me/+FlfyjU68Txg2NjE8', '_blank'); };
@@ -652,7 +625,7 @@
             document.getElementById('taskModal').style.display = 'none';
         };
 
-        /*========= SWAP MODAL =========*/
+        // ===== 16) Swap Modal =====
         swapNav.addEventListener('click', () => document.getElementById('swapModal').style.display = 'flex');
         document.getElementById('closeSwap').onclick = () => document.getElementById('swapModal').style.display = 'none';
         const swapInput = document.getElementById('swapInput');
@@ -672,7 +645,7 @@
             alert(`Converted! You received ${reward.toFixed(3)} USDT`);
         };
 
-        /*========= WITHDRAW MODAL =========*/
+        // ===== 17) Withdraw Modal =====
         withdrawNav.addEventListener('click', () => document.getElementById('withdrawModal').style.display = 'flex');
         document.getElementById('closeWithdraw').onclick = () => document.getElementById('withdrawModal').style.display = 'none';
         document.getElementById('confirmWithdraw').onclick = () => {
@@ -703,7 +676,7 @@
                 .catch(() => alert("Network error."));
         };
 
-        /*========= AUTO-CLICK & 3-HOUR COUNTDOWN =========*/
+        // ===== 18) Auto-Click & Countdown =====
         let autoClickInterval = null;
         let countdownInterval = null;
 
@@ -729,7 +702,7 @@
             }, 1000);
         }
 
-        /*========= RESUME IF AUTO WAS ON =========*/
+        // ===== 19) Resume if auto was on =====
         if (autoClickEnabled) {
             if (timeLeft > 0) { startAutoClick(); startCountdown(); }
             else { autoClickEnabled = false; saveAll(); updateUI(); }
