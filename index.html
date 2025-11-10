@@ -307,7 +307,6 @@
             letter-spacing: 1px;
         }
 
-        /*========= TASK MODAL =========*/
         .modal{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:30}
         .modal-content{background:#1a1a1a;border:1.5px solid rgba(255,215,0,.5);border-radius:12px;padding:14px;width:90%;max-width:300px;color:#fff;font-size:11px;display:flex;flex-direction:column;gap:8px}
         .modal-content input{padding:7px;font-size:11px;border-radius:6px;border:none;text-align:center}
@@ -315,10 +314,6 @@
         .close-btn{align-self:flex-end;font-size:14px;cursor:pointer;color:#FFD700}
         @keyframes pop{0%{transform:scale(1)}50%{transform:scale(1.15)}100%{transform:scale(1)}}
         .pop{animation:pop .3s ease}
-
-        /*========= REFERRAL LINK BUTTON =========*/
-        .btn-referral{background:#00c853;color:#fff;margin-top:6px;}
-        .btn-referral:hover{background:#00b248;}
     </style>
 </head>
 <body>
@@ -358,7 +353,6 @@
                     <div class="balance-section">
                         <div class="balance-line"><span>💰 Points: <span id="pointsBalance" class="mono-balance">0</span></span></div>
                         <div class="balance-line"><span>💵 USDT: <span id="usdtBalance" class="mono-balance">0</span></span></div>
-                        <div class="balance-line"><span>👥 Referrals: <span id="referralCount" class="mono-balance">0</span></span></div>
                         <div class="timer" id="countdownTimer">03:00:00</div>
                     </div>
                     <div class="buttons-section">
@@ -381,6 +375,7 @@
 
             <!-- بيانات المستخدم – في أسفل الشاشة تماماً -->
             <div class="user-footer" id="userFooter" style="display:none">
+                <!-- div الصورة أصبح فارغاً وسنملأه عبر background-image -->
                 <div class="user-avatar" id="userAvatar"></div>
                 <div class="user-info">
                     <div class="user-name" id="userName"></div>
@@ -391,127 +386,15 @@
     </div>
 
     <!--========= MODALS =========-->
-    <div class="modal" id="taskModal">
-        <div class="modal-content">
-            <span class="close-btn" id="closeTask">&times;</span>
-            <div><strong>Daily Tasks</strong></div>
-            <label><input type="checkbox" id="joinChannelCheck" data-pts="10000"> Join Channel (+10,000)</label>
-            <button id="claimTasks">Claim Rewards</button>
-            <button class="btn btn-referral" id="copyReferralLink">📎 Copy Referral Link</button>
-        </div>
-    </div>
-
+    <div class="modal" id="taskModal"><div class="modal-content"><span class="close-btn" id="closeTask">&times;</span><div><strong>Daily Tasks</strong></div><label><input type="checkbox" id="joinChannelCheck" data-pts="10000"> Join Channel (+10,000)</label><button id="claimTasks">Claim Rewards</button></div></div>
     <div class="modal" id="swapModal"><div class="modal-content"><span class="close-btn" id="closeSwap">&times;</span><div>Enter points (min 10,000)</div><input type="number" id="swapInput" min="10000" step="1000" placeholder="10000"><div>You will get: <span id="usdtPreview">0</span> USDT</div><button id="confirmSwap">Convert Now</button></div></div>
     <div class="modal" id="withdrawModal"><div class="modal-content"><span class="close-btn" id="closeWithdraw">&times;</span><div>Your Polygon USDT address</div><input type="text" id="withdrawAddress" placeholder="0x..."><div>Amount to withdraw (min 0.5 USDT)</div><input type="number" id="withdrawAmount" min="0.5" step="0.1" placeholder="0.5"><button id="confirmWithdraw">Withdraw Now</button></div></div>
 
     <!--========= SCRIPTS =========-->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://ad.gigapub.tech/script?id=3459"></script>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script>
-        // ===== 1) Supabase Client =====
-        const SUPABASE_URL = 'https://cgoypejhtytewcdjgiso.supabase.co';
-        const SUPABASE_ANON= 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNnb3lwZWpodHl0ZXdjZGpnaXNvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NzkyOTEsImV4cCI6MjA3ODM1NTI5MX0.mo4cdPIh5JLkD4xM_a-Z-CWYvOOrMhLi_ApLC7ClADs';
-        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-
-        // ===== 2) Telegram =====
-        const tg       = window.Telegram.WebApp;
-        const userID   = tg.initDataUnsafe?.user?.id   || 999999;
-        const userName = tg.initDataUnsafe?.user?.username || 'user_'+userID;
-
-        // ===== 3) Local Keys =====
-        const LS_PREFIX = `usr_${userID}_`;
-        const LS = {
-            clicks : LS_PREFIX + 'clicks',
-            usdt   : LS_PREFIX + 'usdt',
-            counter: LS_PREFIX + 'counter',
-            auto   : LS_PREFIX + 'auto',
-            countdown: LS_PREFIX + 'countdown',
-            joined : LS_PREFIX + 'joined',
-            mysteryLastClaim: LS_PREFIX + 'mysteryLastClaim',
-            quickLastClaim  : LS_PREFIX + 'quickLastClaim',
-            referredBy      : LS_PREFIX + 'referredBy',
-            claimedReferral : LS_PREFIX + 'claimedReferral'
-        };
-
-        // ===== 4) DOM Shortcuts =====
-        const pointsBalance  = document.getElementById('pointsBalance');
-        const usdtBalance    = document.getElementById('usdtBalance');
-        const countdownTimer = document.getElementById('countdownTimer');
-        const mainCircle     = document.getElementById('mainCircle');
-        const mysteryBoxBtn  = document.getElementById('mysteryBoxBtn');
-        const quickBonusBtn  = document.getElementById('quickBonusBtn');
-        const taskNav        = document.getElementById('taskNav');
-        const swapNav        = document.getElementById('swapNav');
-        const watchNav       = document.getElementById('watchNav');
-        const withdrawNav    = document.getElementById('withdrawNav');
-        const adBadge        = document.getElementById('adBadge');
-        const referralCountEl= document.getElementById('referralCount');
-
-        // ===== 5) State =====
-        let clicks   = parseInt(localStorage.getItem(LS.clicks))   || 0;
-        let usdt     = parseFloat(localStorage.getItem(LS.usdt)) || 0;
-        let counter  = parseInt(localStorage.getItem(LS.counter)) || 30;
-        let autoClickEnabled = localStorage.getItem(LS.auto) === 'true';
-        let timeLeft = parseInt(localStorage.getItem(LS.countdown)) || (3 * 3600);
-
-        // ===== 6) UI Helpers =====
-        function saveAll() {
-            localStorage.setItem(LS.clicks, clicks);
-            localStorage.setItem(LS.usdt, usdt);
-            localStorage.setItem(LS.counter, counter);
-            localStorage.setItem(LS.auto, autoClickEnabled);
-            localStorage.setItem(LS.countdown, timeLeft);
-        }
-        function updateUI() {
-            pointsBalance.textContent = clicks;
-            usdtBalance.textContent   = usdt.toFixed(3);
-            adBadge.textContent       = counter;
-            adBadge.style.display     = counter > 0 ? 'flex' : 'none';
-            if (autoClickEnabled) mainCircle.classList.add('ripple');
-            else mainCircle.classList.remove('ripple');
-        }
-
-        // ===== 7) Supabase – Referral Count =====
-        async function fetchReferralCount() {
-            const { count, error } = await sb
-                .from('referrals')
-                .select('*', { count: 'exact', head: true })
-                .eq('referrer_id', userID);
-            if (!error) referralCountEl.textContent = count;
-        }
-        async function recordReferral(referrer) {
-            await sb.from('referrals').insert({ referrer_id: referrer, referred_id: userID });
-            fetchReferralCount();
-        }
-
-        // ===== 8) Referral Logic =====
-        function getReferrerFromURL() {
-            const p = new URLSearchParams(location.search);
-            const s = p.get('startapp');
-            return (s && s.startsWith('ref_')) ? parseInt(s.replace('ref_', '')) : null;
-        }
-        const referrerID = getReferrerFromURL();
-        const isNewUser  = !localStorage.getItem(LS.clicks);
-
-        if (referrerID && isNewUser && referrerID !== userID) {
-            const claimed = localStorage.getItem(LS.claimedReferral) === 'true';
-            if (!claimed) {
-                localStorage.setItem(LS.referredBy, referrerID);
-                localStorage.setItem(LS.claimedReferral, 'true');
-                clicks += 10000;
-                recordReferral(referrerID);
-                saveAll(); updateUI();
-            }
-        } else { fetchReferralCount(); }
-
-        // ===== 9) Copy Referral Link =====
-        document.getElementById('copyReferralLink').addEventListener('click', () => {
-            const link = `https://t.me/SJsbsbshsshjssksBot/play?startapp=ref_${userID}`;
-            navigator.clipboard.writeText(link).then(() => alert('Copied!'));
-        });
-
-        // ===== 10) Loading Screen =====
+        // Loading screen animation
         let progress = 0;
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
@@ -534,16 +417,102 @@
                 }, 500);
             }
         }
+
+        // Start loading animation
         updateProgress();
 
-        // ===== 11) Center Circle Click =====
+        /*========= استقبال بيانات المستخدم =========*/
+        const tg              = window.Telegram.WebApp;
+        const userID          = tg.initDataUnsafe?.user?.id || 999999;
+        const userName        = tg.initDataUnsafe?.user?.username || 'user_'+userID;
+        const LS_PREFIX       = `usr_${userID}_`;
+
+        const LS = {
+            clicks : LS_PREFIX + 'clicks',
+            usdt   : LS_PREFIX + 'usdt',
+            counter: LS_PREFIX + 'counter',
+            auto   : LS_PREFIX + 'auto',
+            countdown: LS_PREFIX + 'countdown',
+            joined : LS_PREFIX + 'joined',
+            mysteryLastClaim: LS_PREFIX + 'mysteryLastClaim',
+            quickLastClaim  : LS_PREFIX + 'quickLastClaim'
+        };
+
+        let clicks   = parseInt(localStorage.getItem(LS.clicks))   || 0;
+        let usdt     = parseFloat(localStorage.getItem(LS.usdt)) || 0;
+        let counter  = parseInt(localStorage.getItem(LS.counter)) || 30;
+        let autoClickEnabled = localStorage.getItem(LS.auto) === 'true';
+        let timeLeft = parseInt(localStorage.getItem(LS.countdown)) || (3 * 3600);
+
+        /*========= DOM SHORTCUTS =========*/
+        const pointsBalance = document.getElementById('pointsBalance');
+        const usdtBalance   = document.getElementById('usdtBalance');
+        const countdownTimer= document.getElementById('countdownTimer');
+        const mainCircle    = document.getElementById('mainCircle');
+        const mysteryBoxBtn = document.getElementById('mysteryBoxBtn');
+        const quickBonusBtn = document.getElementById('quickBonusBtn');
+        const taskNav       = document.getElementById('taskNav');
+        const swapNav       = document.getElementById('swapNav');
+        const watchNav      = document.getElementById('watchNav');
+        const withdrawNav   = document.getElementById('withdrawNav');
+        const adBadge       = document.getElementById('adBadge');
+
+        /*========= عرض بيانات المستخدم =========*/
+        const userFooter    = document.getElementById('userFooter');
+        const userAvatar    = document.getElementById('userAvatar');
+        const userNameEl    = document.getElementById('userName');
+        const userUsernameEl= document.getElementById('userUsername');
+
+        function showUserData(){
+            const tgData = tg.initDataUnsafe?.user;
+            if(!tgData){ userFooter.style.display='none'; return; }
+
+            // الاسم الكامل
+            const fullName = [tgData.first_name, tgData.last_name].filter(Boolean).join(' ');
+            userNameEl.textContent = fullName || 'No Name';
+
+            // اليوزرنيم
+            const username = tgData.username ? '@'+tgData.username : 'غير متاح';
+            userUsernameEl.textContent = username;
+
+            // الصورة (إن وُجدت) وإلا خلفية رمادية
+            if(tgData.photo_url){
+                userAvatar.style.backgroundImage = `url(${tgData.photo_url})`;
+            }else{
+                userAvatar.style.backgroundImage = 'none';
+            }
+
+            userFooter.style.display = 'flex';
+        }
+        showUserData();
+
+        /*========= UTILITIES =========*/
+        function saveAll() {
+            localStorage.setItem(LS.clicks, clicks);
+            localStorage.setItem(LS.usdt, usdt);
+            localStorage.setItem(LS.counter, counter);
+            localStorage.setItem(LS.auto, autoClickEnabled);
+            localStorage.setItem(LS.countdown, timeLeft);
+        }
+        function updateUI() {
+            pointsBalance.textContent = clicks;
+            usdtBalance.textContent   = usdt.toFixed(3);
+            adBadge.textContent       = counter;
+            adBadge.style.display     = counter > 0 ? 'flex' : 'none';
+            if (autoClickEnabled) mainCircle.classList.add('ripple');
+            else mainCircle.classList.remove('ripple');
+        }
+        updateUI();
+
+        /*========= CENTER CIRCLE CLICK (manual) =========*/
         mainCircle.addEventListener('click', () => {
             if (!autoClickEnabled) return;
             clicks++;
-            saveAll(); updateUI();
+            saveAll();
+            updateUI();
         });
 
-        // ===== 12) Mystery Box =====
+        /*========= MYSTERY BOX (5 min) =========*/
         function canClaimMystery() {
             const last = parseInt(localStorage.getItem(LS.mysteryLastClaim)) || 0;
             return (Date.now() - last) >= 5 * 60 * 1000;
@@ -567,7 +536,7 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        // ===== 13) Quick Bonus =====
+        /*========= QUICK BONUS (24 h) =========*/
         function canClaimQuick() {
             const last = parseInt(localStorage.getItem(LS.quickLastClaim)) || 0;
             return (Date.now() - last) >= 24 * 60 * 60 * 1000;
@@ -591,13 +560,14 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        // ===== 14) Watch Ads =====
+        /*========= WATCH ADS (30x) =========*/
         watchNav.addEventListener('click', () => {
             if (counter <= 0) return alert("All ads watched! Auto-Click is ON.");
             window.showGiga()
                 .then(() => {
                     counter--;
-                    saveAll(); updateUI();
+                    saveAll();
+                    updateUI();
                     if (counter === 0 && !autoClickEnabled) {
                         autoClickEnabled = true;
                         saveAll(); updateUI();
@@ -609,7 +579,7 @@
                 .catch(() => alert("Ad skipped or failed. No reward."));
         });
 
-        // ===== 15) Tasks Modal =====
+        /*========= TASKS MODAL =========*/
         taskNav.addEventListener('click', () => document.getElementById('taskModal').style.display = 'flex');
         document.getElementById('closeTask').onclick = () => document.getElementById('taskModal').style.display = 'none';
         document.getElementById('joinChannelCheck').onchange = e => { if (e.target.checked) window.open('https://t.me/+FlfyjU68Txg2NjE8', '_blank'); };
@@ -625,7 +595,7 @@
             document.getElementById('taskModal').style.display = 'none';
         };
 
-        // ===== 16) Swap Modal =====
+        /*========= SWAP MODAL =========*/
         swapNav.addEventListener('click', () => document.getElementById('swapModal').style.display = 'flex');
         document.getElementById('closeSwap').onclick = () => document.getElementById('swapModal').style.display = 'none';
         const swapInput = document.getElementById('swapInput');
@@ -645,7 +615,7 @@
             alert(`Converted! You received ${reward.toFixed(3)} USDT`);
         };
 
-        // ===== 17) Withdraw Modal =====
+        /*========= WITHDRAW MODAL =========*/
         withdrawNav.addEventListener('click', () => document.getElementById('withdrawModal').style.display = 'flex');
         document.getElementById('closeWithdraw').onclick = () => document.getElementById('withdrawModal').style.display = 'none';
         document.getElementById('confirmWithdraw').onclick = () => {
@@ -676,7 +646,7 @@
                 .catch(() => alert("Network error."));
         };
 
-        // ===== 18) Auto-Click & Countdown =====
+        /*========= AUTO-CLICK & 3-HOUR COUNTDOWN =========*/
         let autoClickInterval = null;
         let countdownInterval = null;
 
@@ -702,7 +672,7 @@
             }, 1000);
         }
 
-        // ===== 19) Resume if auto was on =====
+        /*========= RESUME IF AUTO WAS ON =========*/
         if (autoClickEnabled) {
             if (timeLeft > 0) { startAutoClick(); startCountdown(); }
             else { autoClickEnabled = false; saveAll(); updateUI(); }
